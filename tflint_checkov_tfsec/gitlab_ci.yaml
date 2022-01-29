@@ -1,0 +1,89 @@
+#   Description:
+#   ---------------------------------------------------------------------------
+#   Pipeline template for linting terraform
+#   (initial version - before moving the script sections into a self-contained image)
+#
+#   <example>
+#     include:
+#       - project: abc_company/abc_company-sre/cicd/apps/cicd-gitlab-templates
+#         file: terraform.gitlab-ci.yml
+#         ref: stable # (branch or tag)
+#   </example>
+# ---------------------------------------------------------------------------
+
+
+variables:
+
+  # required environment variables:
+  TERRAFORM_TFLINT_CONFIG: "tflint.hcl"
+
+
+# Uses ubuntu which is bad
+image:
+  # Terraform image is built on some OS image that doesn't have even rudimentary stuff on it and this not at all fit for a pipeline
+  name: ubuntu:20.04
+  entrypoint:
+    - '/usr/bin/env'
+    - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+#
+before_script:
+  #
+  # If we don't have git installed in the before script, all 3 jobs fail.
+  # Same for ap update
+  - apt update
+  - apt install git -y
+
+
+#
+# TFLINT
+tflint:
+  script:
+    # Install wget, tflint, go
+    # Clone the tflint repo for google ruleset
+    # make tflint
+    # run tflint
+    - apt-get install wget unzip -y
+    - wget -q https://github.com/terraform-linters/tflint/releases/download/v0.23.0/tflint_linux_386.zip
+    - unzip tflint_linux_386.zip
+    - ./tflint -v
+    - wget -q https://golang.org/dl/go1.15.3.linux-amd64.tar.gz
+    - ls -l go*.gz
+    - tar -C /usr/local -xzf go1.15.3.linux-amd64.tar.gz
+    - export PATH=$PATH:/usr/local/go/bin
+    - go version
+    - apt-get install build-essential -y
+    - git clone https://github.com/terraform-linters/tflint-ruleset-google/
+    - cd tflint-ruleset-google
+    - make
+    - make install
+    - cd ..
+    - ./tflint --loglevel=info -c $TERRAFORM_TFLINT_CONFIG
+
+#
+# CHECKOV
+checkov:
+  script:
+    # install pip3, checkov, run checkov for terraform
+    - apt-get install python3-pip -y
+    - pip3 install checkov
+    - checkov -d . --framework terraform
+
+#
+# TFSEC
+tfsec:
+  script:
+    # install wget , go, tfsec
+    # run tfsec
+    - apt-get install wget unzip -y
+    - wget https://golang.org/dl/go1.15.6.linux-amd64.tar.gz
+    - tar -C /usr/local -xzf go1.15.6.linux-amd64.tar.gz
+    - export PATH=$PATH:/usr/local/go/bin
+    - go version
+    - go get -u github.com/tfsec/tfsec/cmd/tfsec
+    - find / -name tfsec
+    - ls -l /root/go/bin/tfsec
+    - /root/go/bin/tfsec .
+#
+#
